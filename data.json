@@ -1,0 +1,18 @@
+{
+  'current_level': 0,
+  'levels': {
+    'level0': {
+      'level_id': 0,
+      'level_title': 'Introduction to CLI',
+      'level_description': 'description of level',
+      'level_type': {
+        'Command' {
+          'checker_command': 'some command or script'
+        }
+      },
+      'level_condition': 'check condition',
+      'level_highest_score': 0,
+      'level_shortest_time': 0.00
+    }
+  }
+}

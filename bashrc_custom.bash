@@ -31,4 +31,6 @@ debug_fn () {
 }
 
 trap debug_fn debug
+
 echo "Welcome to the learning environment"
+echo "To get started, simply enter play_level into the command line or use the game command to play a level"
