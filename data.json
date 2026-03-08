@@ -1,18 +1,41 @@
 {
-  'current_level': 0,
-  'levels': {
-    'level0': {
-      'level_id': 0,
-      'level_title': 'Introduction to CLI',
-      'level_description': 'description of level',
-      'level_type': {
-        'Command' {
-          'checker_command': 'some command or script'
+  "current_level": "0",
+  "levels": {
+    "0": {
+      "level_title": "Introduction to CLI",
+      "level_description": "description of level",
+      "level_type": {
+        "Command": {
+          "checker_command": "some command or script"
         }
       },
-      'level_condition': 'check condition',
-      'level_highest_score': 0,
-      'level_shortest_time': 0.00
+      "level_highest_score": 0,
+      "level_shortest_time": 0.0
+    },
+    "1": {
+      "level_title": "Introduction to CLI",
+      "level_description": "description of level",
+      "level_type": {
+        "File": {
+          "target_file": "path/to/file",
+          "correct_content": "content that must be present, also OPTIONAL"
+        }
+      }
+    },
+    "2": {
+      "level_title": "Introduction to CLI",
+      "level_description": "description of level",
+      "level_type": {
+        "Directory": {
+          "target_directory": "path/to/directory",
+          "correct_file_tree": [
+            {
+              "name": "name of file or directory, should be in the form of a local path relative to target dir",
+              "content": "optional field for a file that should have text"
+            }
+          ]
+        }
+      }
     }
   }
 }

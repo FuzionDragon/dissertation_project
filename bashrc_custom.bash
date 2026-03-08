@@ -9,28 +9,76 @@
 # Learning tool logic
 export APP_ACTIVE=1
 export IN_LEVEL=0
-export CURRENT_LEVEL=0
-export NUMBER_OF_USED_COMMANDS=0
+export CURRENT_LEVEL=-1
+export TMP_FILE="/tmp/tmp_cli_learn"
 
 # temporary, should be executable path in the future
 export PROJECT_PATH="$(pwd)/Cargo.toml"
 
 # temporary, needs to be location of binary during distribution
-alias check='cargo run --manifest-path $PROJECT_PATH -- -u'
+alias run_binary='cargo run --manifest-path $PROJECT_PATH'
+alias check='cargo run --manifest-path $PROJECT_PATH --  --user-command '
+alias play_level='run_binary --  play '
+alias end_level='run_binary --  end'
 
 alias ls='ls --color=auto'
 alias grep='grep --color=auto'
 PS1='[\u@\h \W]\$ '
 PROMPT_COMMAND=''
 
-debug_fn () {
+export NUMBER_OF_USED_COMMANDS=0
+
+echo "Welcome to the learning environment"
+echo "To get started, simply enter play_level into the command line to play the latest level"
+echo
+echo "To select a specific level, you can add the --level or -l flag after typing play_level"
+echo "Something like: 'play_level -l LEVEL_NUMBER'"
+echo
+echo "To close the game, run the 'exit' command"
+
+#run_binary
+
+# used for reading the file contents, and acting on certain instructions it states
+env_listener () {
+  if [[ -f $TMP_FILE ]]; then
+    command="$(awk '{print $1}' $TMP_FILE)"
+    value="$(awk '{print $2}' $TMP_FILE)"
+
+    case $command in 
+      "SELECTED_LEVEL")
+        if [[ $value == "-1" ]] then
+          echo "Command provided but level is not selected"
+          IN_LEVEL=0
+          CURRENT_LEVEL=-1
+        else
+          echo "Level starting.."
+          echo "If you want to end the level early, enter end_level into the command line"
+          IN_LEVEL=1
+          CURRENT_LEVEL=$value
+          echo "Playing level $CURRENT_LEVEL"
+        fi
+        CURRENT_LEVEL=$value
+        ;;
+
+      *)
+        # temporary
+        echo "Unknown command"
+        ;;
+    esac
+
+    #cat $TMP_FILE
+    truncate $TMP_FILE --size 0
+  fi
+}
+
+debug_trap () {
   #echo "Command: $BASH_COMMAND with exit status $?";
   if [[ $IN_LEVEL -eq 1 ]]; then
     check "$BASH_COMMAND"
   fi
 }
 
-trap debug_fn debug
+env_listener
 
-echo "Welcome to the learning environment"
-echo "To get started, simply enter play_level into the command line or use the game command to play a level"
+trap env_listener exit
+trap debug_trap debug

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -10,16 +10,17 @@ use std::{
 
 #[derive(Serialize, Deserialize, Debug)]
 struct JsonData {
-    current_level: i32,
+    current_level: String,
     levels: HashMap<String, Level>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Level {
-    level_id: i32,
     level_title: String,
     level_description: String,
     level_type: LevelType,
+    highest_score: Option<i32>,
+    shortest_time: Option<f32>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -39,13 +40,11 @@ enum LevelType {
 
 // implicit assumption that an item with contents is a file, reguardless if empty or not this field
 // will need to be added in the json
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 struct DirectoryItem {
     name: String,
-    contents: Option<String>,
+    content: Option<String>,
 }
-
-//const CUSTOM_BASHRC_PATH: &str = "./bashrc_custom.bash";
 
 // needs persistent storage of the user data: current level, completed level, score, etc, inside a
 // json file, to be modified and fetched on each start and finish of a level.
@@ -57,64 +56,256 @@ struct DirectoryItem {
 #[command(version, about, long_about = None)]
 struct Args {
     /// piped user output, to be checked
-    #[arg(short, long)]
+    #[arg(short, long, hide = true)]
     user_command: Option<String>,
 
-    /// selecting level to be played
-    play: Option<String>,
+    #[command(subcommand)]
+    command: Option<Commands>,
 }
 
-fn main() -> Result<()> {
-    let args = Args::parse();
-    let mut data_path = env::home_dir().unwrap();
-    data_path.push(".local/share/cli_learning_tool/data.json");
-    data_path.to_str().unwrap();
-    let raw_json = fs::read_to_string(data_path)?;
-    let json_data: JsonData = parse_data(&raw_json)?;
+#[derive(Subcommand, Debug)]
+enum Commands {
+    /// selecting level to be played, by default will play the current level
+    Play {
+        #[arg(short, long)]
+        level: Option<String>,
 
-    match env::current_exe() {
-        Ok(mut exe_path) => {
-            exe_path.pop();
+        #[arg(short, long, default_value_t = false)]
+        interactive: bool,
+    },
 
-            // temporary, due to rust project file tree
-            // would not need back movements
-            let bashrc_path = format!(
-                "{}/../../bashrc_custom.bash",
-                exe_path.into_os_string().into_string().unwrap()
-            );
+    /// Ends the current level early, otherwise does nothing
+    End,
+}
 
-            match env::var("APP_ACTIVE") {
-                Ok(_v) => {
-                    if let Some(user_command) = args.user_command {
-                        // function to check output of the command
-                        check_home(&user_command);
-                    } else {
-                        println!("No user output piped");
-                    }
+trait Messenger {
+    const SELECTED_LEVEL: &str;
+    fn send_message(&self) -> Result<()> {
+        Ok(())
+    }
+}
+
+// to pass data from Rust to Bash
+enum KeyWords {
+    Play(Option<String>, bool),
+}
+
+impl Messenger for KeyWords {
+    const SELECTED_LEVEL: &str = "SELECTED_LEVEL";
+
+    fn send_message(&self) -> Result<()> {
+        match self {
+            KeyWords::Play(level, interactive) => {
+                println!("Sending selected level");
+                let selected_level: &str;
+                if interactive.to_owned() {
+                    println!("Interative flag raised");
+                    // temporary
+                    selected_level = "-1";
+                } else if let Some(some_level) = level {
+                    println!("Level selected {some_level}");
+                    selected_level = some_level;
+                } else {
+                    println!("Level command ran but without specified level");
+                    selected_level = "-1";
                 }
-                Err(_e) => {
-                    println!("Not currently in learning environment, spawning custom Bash session");
-                    Command::new("bash")
-                        .arg("--rcfile")
-                        .arg(bashrc_path)
-                        .spawn()
-                        .expect("failed to execute process")
-                        .wait()
-                        .expect("failed to wait");
-                }
+
+                println!("changing level");
+                let command = Self::SELECTED_LEVEL;
+                fs::write(TMP_FILE_PATH, format!("{command} {selected_level}"))?;
+                let contents = fs::read_to_string(TMP_FILE_PATH)?;
+                println!("{contents}");
             }
         }
 
-        Err(e) => println!("failed to get current exe path: {e}"),
-    };
+        Ok(())
+    }
+}
+
+//const CUSTOM_BASHRC_PATH: &str = "./bashrc_custom.bash";
+const TMP_FILE_PATH: &str = "/tmp/tmp_cli_learn";
+
+fn main() -> Result<()> {
+    let args = Args::parse();
+    let mut exe_path = env::current_exe()?;
+    exe_path.pop();
+
+    // temporary, due to rust project file tree
+    // would not need back movements
+    let bashrc_path = format!(
+        "{}/../../bashrc_custom.bash",
+        exe_path.clone().into_os_string().into_string().unwrap()
+    );
+    //let bashrc_path = format!(
+    //    {}/bashrc_custom.bash",
+    //    exe_path.clone().into_os_string().into_string().unwrap()
+    //);
+
+    // needs to create a file in /tmp, which will be regularly written to and cleared out in order
+    // for the Bash trap to capture and read
+    if env::var("APP_ACTIVE").is_err() {
+        // checks if there is a specified level
+        fs::File::create(TMP_FILE_PATH)?;
+        match &args.command {
+            Some(Commands::Play { level, interactive }) => {
+                let selected_level = KeyWords::Play(level.to_owned(), *interactive);
+                selected_level.send_message()?;
+            }
+            Some(Commands::End) => {
+                println!("Not currently in the learning environment");
+                return Ok(());
+            }
+            None => (),
+        }
+        let command = format!("bash --rcfile {bashrc_path}");
+        Command::new("bash")
+            .arg("-c")
+            .arg(command)
+            .spawn()?
+            .wait()?;
+    } else {
+        println!("App is active");
+
+        println!("main print IN_LEVEL: {}", env::var("IN_LEVEL")?);
+        // Only triggers if the user has selected a level on initialisation
+        if let Some(Commands::Play { level, interactive }) = args.command {
+            play(level, interactive)?;
+        }
+        // needs to clear SELECTED_LEVEL on finish
+        if env::var("SELECTED_LEVEL").is_ok() {
+            println!("Level Selected: {}", env::var("SELECTED_LEVEL")?);
+            play(Some(env::var("SELECTED_LEVEL")?), false)?;
+        }
+
+        let mut exe_path = env::current_exe()?;
+        exe_path.pop();
+
+        // temporary, due to rust project file tree
+        // would not need back movements
+        let data_path = format!(
+            "{}/../../data.json",
+            exe_path.into_os_string().into_string().unwrap()
+        );
+        //let data_path = format!(
+        //    {}/data.json",
+        //    exe_path.into_os_string().into_string().unwrap()
+        //);
+        let raw_json = fs::read_to_string(data_path)?;
+        let json_data: JsonData = serde_json::from_str(&raw_json)?;
+
+        // this give key value pair, not jut the value
+        //println!("{:?}", &json_data);
+        let current_level = json_data.levels.get(&json_data.current_level);
+
+        println!("Current Level: {:?}", current_level);
+        if let Some(level) = current_level
+            && env::var("IN_LEVEL")? == "1"
+        {
+            process_level(level)?;
+        }
+    }
 
     Ok(())
 }
 
-fn parse_data(raw_json: &str) -> Result<JsonData, serde_json::Error> {
-    let data: JsonData = serde_json::from_str(raw_json)?;
+fn process_level(current_level: &Level) -> Result<()> {
+    println!("in game process");
 
-    Ok(data)
+    let mut level_complete = false;
+    match &current_level.level_type {
+        LevelType::Command { checker_command } => {
+            let option_user_command = Args::parse().user_command;
+            if let Some(user_command) = option_user_command {
+                // function to check output of the command
+                level_complete = check_command_question(checker_command, &user_command)?;
+            }
+        }
+        LevelType::File {
+            target_file,
+            correct_content,
+        } => {
+            level_complete = check_file_question(target_file, correct_content)?;
+        }
+        LevelType::Directory {
+            target_directory,
+            correct_file_tree,
+        } => {
+            level_complete =
+                check_directory_question(target_directory, correct_file_tree.clone().to_vec())?;
+        }
+    }
+
+    // needs more logic
+    if level_complete {
+        println!("Level has been completed");
+        complete()?;
+    }
+    // this else statement is temporary, for debugging and testing
+    else {
+        println!("Not complete");
+    }
+
+    Ok(())
+}
+
+fn create_tmp_file() -> Result<()> {
+    fs::File::create(TMP_FILE_PATH)?;
+    Ok(())
+}
+
+// starts processes needed for playing a level, by default would play the 'current_level' set
+// otherwise, if a level is provided then it should select that as the current_level and play it
+// instead
+fn play(level: Option<String>, interactive: bool) -> Result<String> {
+    println!("Playing level {:?}", &level);
+    // should open interactive level select menu
+    if interactive {
+        println!("Interative flag raised");
+        return Ok("-1".to_owned());
+    }
+
+    if env::var("IN_LEVEL").is_ok() {
+        if env::var("IN_LEVEL")? == "0" {
+            println!("Not in level, changing level");
+            fs::write(TMP_FILE_PATH, "IN_LEVEL=1")?;
+            //Command::new("bash")
+            //    .arg("-c")
+            //    .arg("export IN_LEVEL=1")
+            //    .status()?;
+            //Command::new("bash")
+            //    .arg("-c")
+            //    .arg("TEST='This is a test'")
+            //    .status()?;
+        } else {
+            // potential room for allowing mid level jumping
+            println!("Already in level");
+        }
+
+        println!("After setting IN_LEVEL: {}", env::var("IN_LEVEL")?);
+    }
+
+    if let Some(level) = level {
+        Ok(level)
+    } else {
+        Ok("-1".to_owned())
+    }
+}
+
+fn complete() -> Result<()> {
+    if env::var("IN_LEVEL")? == "1" {
+        Command::new("bash").arg("-c").arg("IN_LEVEL=0").status()?;
+    } else {
+        println!("Not currently in a level");
+    }
+
+    Ok(())
+}
+
+// future function to be added after ensuring level system works
+// it allows the user to list all the levels provided by the tool, even highlighting core
+// information like scores and if the level had been completed or not.
+fn print_levels() -> Result<()> {
+    Ok(())
 }
 
 // different types of checkers: file based, directory based, output based
@@ -145,8 +336,8 @@ fn check_home(user_command: &str) {
     let correct_output = String::from_utf8_lossy(&list.stdout);
     let user_output = String::from_utf8_lossy(&user_command.stdout);
 
-    println!("Home directory has {}", &correct_output);
-    println!("User output is {}", &user_output);
+    //println!("Home directory has {}", &correct_output);
+    //println!("User output is {}", &user_output);
 
     if correct_output == user_output {
         println!("Same out put detected, checker found condition has been met");
@@ -155,17 +346,13 @@ fn check_home(user_command: &str) {
     }
 }
 
-// must fetch and deserialise the contents of data.json (stored in dedicated .local/share directory)
-fn fetch_user_data() -> Result<String> {
-    Ok(String::new())
-}
-
 // must update and serialise the contents of data.json (stored in dedicated .local/share directory)
 fn update_user_data() -> Result<()> {
     Ok(())
 }
 
 fn check_command_question(checking_command: &str, user_command: &str) -> Result<bool> {
+    println!("Checking current command: {user_command}");
     let user_output = Command::new("bash").arg("-c").arg(user_command).output()?;
 
     let correct_output = Command::new("bash")
@@ -180,13 +367,21 @@ fn check_command_question(checking_command: &str, user_command: &str) -> Result<
     }
 }
 
-fn check_file_question(target_file: &str, correct_content: &str) -> Result<bool> {
+// needs to check if content is present, and also check if file exists
+fn check_file_question(target_file: &str, correct_content: &Option<String>) -> Result<bool> {
+    if !fs::exists(target_file)? {
+        return Ok(false);
+    }
     let user_file_data = fs::read_to_string(target_file)?;
 
-    if user_file_data == correct_content {
-        Ok(true)
+    if let Some(content) = correct_content {
+        if user_file_data == *content {
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     } else {
-        Ok(false)
+        Ok(true)
     }
 }
 
@@ -199,10 +394,11 @@ fn check_directory_question(
     correct_file_tree: Vec<DirectoryItem>,
 ) -> Result<bool> {
     for directory_item in correct_file_tree {
-        if !fs::exists(&directory_item.name)? {
+        let item_path = format!("{}/{}", target_directory, &directory_item.name);
+        if !fs::exists(&item_path)? {
             return Ok(false);
-        } else if let Some(content) = directory_item.contents
-            && fs::read_to_string(&directory_item.name)? != content
+        } else if let Some(content) = directory_item.content
+            && fs::read_to_string(&item_path)? != content
         {
             return Ok(false);
         }
