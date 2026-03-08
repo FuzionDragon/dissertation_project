@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     env::{self},
-    fs,
+    fs::{self, OpenOptions, write},
+    io::prelude::*,
     process::Command,
 };
 
@@ -75,32 +76,40 @@ enum Commands {
     },
 
     /// Ends the current level early, otherwise does nothing
-    End,
+    End {
+        #[arg(short, long, default_value_t = false)]
+        early: bool,
+    },
 }
 
 trait Messenger {
     const SELECTED_LEVEL: &str;
+    const END_LEVEL: &str;
+
     fn send_message(&self) -> Result<()> {
         Ok(())
     }
 }
 
 // to pass data from Rust to Bash
-enum KeyWords {
+enum Message {
     Play(Option<String>, bool),
+    End(bool),
 }
 
-impl Messenger for KeyWords {
+impl Messenger for Message {
     const SELECTED_LEVEL: &str = "SELECTED_LEVEL";
+    const END_LEVEL: &str = "END_LEVEL";
 
     fn send_message(&self) -> Result<()> {
         match self {
-            KeyWords::Play(level, interactive) => {
+            Message::Play(level, interactive) => {
                 println!("Sending selected level");
                 let selected_level: &str;
                 if interactive.to_owned() {
                     println!("Interative flag raised");
                     // temporary
+                    // needs to open interactive level select (with Ratatui)
                     selected_level = "-1";
                 } else if let Some(some_level) = level {
                     println!("Level selected {some_level}");
@@ -110,11 +119,17 @@ impl Messenger for KeyWords {
                     selected_level = "-1";
                 }
 
-                println!("changing level");
                 let command = Self::SELECTED_LEVEL;
                 fs::write(TMP_FILE_PATH, format!("{command} {selected_level}"))?;
-                let contents = fs::read_to_string(TMP_FILE_PATH)?;
-                println!("{contents}");
+            }
+
+            Message::End(early) => {
+                if !*early {
+                    // save logic
+                }
+
+                let command = Self::END_LEVEL;
+                fs::write(TMP_FILE_PATH, command)?;
             }
         }
 
@@ -141,6 +156,35 @@ fn main() -> Result<()> {
     //    exe_path.clone().into_os_string().into_string().unwrap()
     //);
 
+    let mut exe_path = env::current_exe()?;
+    exe_path.pop();
+
+    // temporary, due to rust project file tree
+    // would not need back movements
+    let data_path = format!(
+        "{}/../../data.json",
+        exe_path.into_os_string().into_string().unwrap()
+    );
+    //let data_path = format!(
+    //    {}/data.json",
+    //    exe_path.into_os_string().into_string().unwrap()
+    //);
+
+    let mut readable_json_file = OpenOptions::new().read(true).open(&data_path)?;
+    let mut writeable_json_file = OpenOptions::new()
+        .write(true)
+        .append(false)
+        .open(&data_path)?;
+
+    let mut raw_json = String::new();
+    readable_json_file.read_to_string(&mut raw_json)?;
+    let mut json_data: JsonData = serde_json::from_str(&raw_json)?;
+
+    // this give key value pair, not jut the value
+    //println!("{:?}", &json_data);
+    let current_level = json_data.levels.get(&json_data.current_level);
+
+    println!("Current Level: {:?}", current_level);
     // needs to create a file in /tmp, which will be regularly written to and cleared out in order
     // for the Bash trap to capture and read
     if env::var("APP_ACTIVE").is_err() {
@@ -148,11 +192,17 @@ fn main() -> Result<()> {
         fs::File::create(TMP_FILE_PATH)?;
         match &args.command {
             Some(Commands::Play { level, interactive }) => {
-                let selected_level = KeyWords::Play(level.to_owned(), *interactive);
-                selected_level.send_message()?;
+                Message::Play(level.to_owned(), *interactive).send_message()?;
+                if let Some(selected_level) = level {
+                    json_data.current_level = selected_level.to_owned();
+                    let data = serde_json::to_vec_pretty(&json_data)?;
+                    writeable_json_file.write_all(&data)?;
+                }
             }
-            Some(Commands::End) => {
-                println!("Not currently in the learning environment");
+            Some(Commands::End { early: _ }) => {
+                println!(
+                    "Not currently in the learning environment\nUse this command when inside the learning environment and during a level"
+                );
                 return Ok(());
             }
             None => (),
@@ -168,36 +218,22 @@ fn main() -> Result<()> {
 
         println!("main print IN_LEVEL: {}", env::var("IN_LEVEL")?);
         // Only triggers if the user has selected a level on initialisation
-        if let Some(Commands::Play { level, interactive }) = args.command {
-            play(level, interactive)?;
+        match args.command {
+            Some(Commands::Play { level, interactive }) => {
+                Message::Play(level.to_owned(), interactive).send_message()?;
+                if let Some(selected_level) = level {
+                    json_data.current_level = selected_level;
+                    let data = serde_json::to_vec_pretty(&json_data)?;
+                    writeable_json_file.write_all(&data)?;
+                }
+            }
+
+            Some(Commands::End { early }) => {
+                Message::End(early).send_message()?;
+            }
+
+            None => (),
         }
-        // needs to clear SELECTED_LEVEL on finish
-        if env::var("SELECTED_LEVEL").is_ok() {
-            println!("Level Selected: {}", env::var("SELECTED_LEVEL")?);
-            play(Some(env::var("SELECTED_LEVEL")?), false)?;
-        }
-
-        let mut exe_path = env::current_exe()?;
-        exe_path.pop();
-
-        // temporary, due to rust project file tree
-        // would not need back movements
-        let data_path = format!(
-            "{}/../../data.json",
-            exe_path.into_os_string().into_string().unwrap()
-        );
-        //let data_path = format!(
-        //    {}/data.json",
-        //    exe_path.into_os_string().into_string().unwrap()
-        //);
-        let raw_json = fs::read_to_string(data_path)?;
-        let json_data: JsonData = serde_json::from_str(&raw_json)?;
-
-        // this give key value pair, not jut the value
-        //println!("{:?}", &json_data);
-        let current_level = json_data.levels.get(&json_data.current_level);
-
-        println!("Current Level: {:?}", current_level);
         if let Some(level) = current_level
             && env::var("IN_LEVEL")? == "1"
         {

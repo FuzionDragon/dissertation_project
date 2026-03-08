@@ -18,8 +18,8 @@ export PROJECT_PATH="$(pwd)/Cargo.toml"
 # temporary, needs to be location of binary during distribution
 alias run_binary='cargo run --manifest-path $PROJECT_PATH'
 alias check='cargo run --manifest-path $PROJECT_PATH --  --user-command '
-alias play_level='run_binary --  play '
-alias end_level='run_binary --  end'
+alias play_level='run_binary --  play'
+alias end_level='run_binary --  end && env_listener'
 
 alias ls='ls --color=auto'
 alias grep='grep --color=auto'
@@ -35,10 +35,9 @@ echo "To select a specific level, you can add the --level or -l flag after typin
 echo "Something like: 'play_level -l LEVEL_NUMBER'"
 echo
 echo "To close the game, run the 'exit' command"
+echo
 
-#run_binary
-
-# used for reading the file contents, and acting on certain instructions it states
+# used for reading the temp file contents, and acting on certain instructions it states
 env_listener () {
   if [[ -f $TMP_FILE ]]; then
     command="$(awk '{print $1}' $TMP_FILE)"
@@ -52,12 +51,11 @@ env_listener () {
           CURRENT_LEVEL=-1
         else
           echo "Level starting.."
-          echo "If you want to end the level early, enter end_level into the command line"
+          echo "If you want to end the level early, enter 'end_level' into the command line"
           IN_LEVEL=1
           CURRENT_LEVEL=$value
           echo "Playing level $CURRENT_LEVEL"
         fi
-        CURRENT_LEVEL=$value
         ;;
 
       *)
