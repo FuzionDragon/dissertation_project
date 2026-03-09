@@ -124,12 +124,21 @@ impl Messenger for Message {
             }
 
             Message::End(early) => {
-                if !*early {
-                    // save logic
-                }
+                // needs changes for in_level, not in_level and also with flag
+                // could be done manually with flag or dynamically
+                let in_level = env::var("IN_LEVEL")?;
+                if in_level == "1" {
+                    if !*early {
+                        println!("End of level, saving stats");
+                        // save logic
+                    } else {
+                        println!("early ending of level");
+                    }
 
-                let command = Self::END_LEVEL;
-                fs::write(TMP_FILE_PATH, command)?;
+                    fs::write(TMP_FILE_PATH, Self::END_LEVEL)?;
+                } else {
+                    println!("Not currently in level");
+                }
             }
         }
 
