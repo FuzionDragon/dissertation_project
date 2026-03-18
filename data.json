@@ -1,5 +1,5 @@
 {
-  "current_level": "2",
+  "current_level": "1",
   "levels": {
     "1": {
       "level_title": "File question",
@@ -8,17 +8,6 @@
         "File": {
           "target_file": "path/to/file",
           "correct_content": "content that must be present, also OPTIONAL"
-        }
-      },
-      "highest_score": null,
-      "shortest_time": null
-    },
-    "0": {
-      "level_title": "Command question",
-      "level_description": "description of level",
-      "level_type": {
-        "Command": {
-          "checker_command": "some command or script"
         }
       },
       "highest_score": null,
@@ -36,6 +25,17 @@
               "content": "optional field for a file that should have text"
             }
           ]
+        }
+      },
+      "highest_score": null,
+      "shortest_time": null
+    },
+    "0": {
+      "level_title": "Command question",
+      "level_description": "description of level",
+      "level_type": {
+        "Command": {
+          "checker_command": "some command or script"
         }
       },
       "highest_score": null,

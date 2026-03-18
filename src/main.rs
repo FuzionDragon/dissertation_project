@@ -4,18 +4,12 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     env::{self},
-    fs::{self, OpenOptions, write},
+    fs::{self, OpenOptions},
     io::prelude::*,
     process::Command,
 };
 
-#[derive(Serialize, Deserialize, Debug)]
-struct JsonData {
-    current_level: String,
-    levels: HashMap<String, Level>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 struct Level {
     level_title: String,
     level_description: String,
@@ -24,7 +18,7 @@ struct Level {
     shortest_time: Option<f32>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 enum LevelType {
     Command {
         checker_command: String,
@@ -82,25 +76,21 @@ enum Commands {
     },
 }
 
-trait Messenger {
-    const SELECTED_LEVEL: &str;
-    const END_LEVEL: &str;
-
-    fn send_message(&self) -> Result<()> {
-        Ok(())
-    }
-}
-
 // to pass data from Rust to Bash
 enum Message {
     Play(Option<String>, bool),
     End(bool),
 }
 
-impl Messenger for Message {
+// issue, whole interface methods require the JSON data, and a mutable form too
+// requires changing JSON data at certain points and overriding them (for saving level results and
+// changing the current_level value) and also reading the current_level in the first place as a
+// fallback for play and also for end level to find the correct hashmap entry to change
+impl Message {
     const SELECTED_LEVEL: &str = "SELECTED_LEVEL";
     const END_LEVEL: &str = "END_LEVEL";
 
+    // needs to take in JsonHandler as param
     fn send_message(&self) -> Result<()> {
         match self {
             Message::Play(level, interactive) => {
@@ -115,12 +105,19 @@ impl Messenger for Message {
                     println!("Level selected {some_level}");
                     selected_level = some_level;
                 } else {
+                    // needs to fetch current_level in json_data
                     println!("Level command ran but without specified level");
                     selected_level = "-1";
                 }
 
                 let command = Self::SELECTED_LEVEL;
                 fs::write(TMP_FILE_PATH, format!("{command} {selected_level}"))?;
+
+                //                if selected_level != "-1" || selected_level == json_data.current_level {
+                //                    json_data.current_level = selected_level.to_owned();
+                //                    let data = serde_json::to_vec_pretty(&json_data)?;
+                //                    writeable_json_file.write_all(&data)?;
+                //                }
             }
 
             Message::End(early) => {
@@ -143,6 +140,48 @@ impl Messenger for Message {
         }
 
         Ok(())
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct JsonData {
+    current_level: String,
+    levels: HashMap<String, Level>,
+}
+
+#[derive(Clone)]
+struct JsonHandler {
+    data: JsonData,
+    path: String,
+}
+
+// allows reading and writing of data
+impl JsonHandler {
+    fn new(path: &str) -> Result<JsonHandler> {
+        let mut read_handle = OpenOptions::new().read(true).open(path)?;
+        let mut raw_json = String::new();
+
+        read_handle.read_to_string(&mut raw_json)?;
+        let data: JsonData = serde_json::from_str(&raw_json)?;
+        let path = path.to_owned();
+
+        Ok(JsonHandler { data, path })
+    }
+
+    fn save_level_data(&mut self, selected_level: String) -> Result<()> {
+        self.data.current_level = selected_level;
+        let mut write_handle = OpenOptions::new()
+            .write(true)
+            .append(false)
+            .open(&self.path)?;
+
+        write_handle.write_all(&serde_json::to_vec_pretty(&self.data)?)?;
+
+        Ok(())
+    }
+
+    fn current_level(&self) -> Result<Option<&Level>> {
+        Ok(self.data.levels.get(&self.data.current_level))
     }
 }
 
@@ -179,19 +218,10 @@ fn main() -> Result<()> {
     //    exe_path.into_os_string().into_string().unwrap()
     //);
 
-    let mut readable_json_file = OpenOptions::new().read(true).open(&data_path)?;
-    let mut writeable_json_file = OpenOptions::new()
-        .write(true)
-        .append(false)
-        .open(&data_path)?;
+    let mut json_handler = JsonHandler::new(&data_path)?;
 
-    let mut raw_json = String::new();
-    readable_json_file.read_to_string(&mut raw_json)?;
-    let mut json_data: JsonData = serde_json::from_str(&raw_json)?;
-
-    // this give key value pair, not jut the value
-    //println!("{:?}", &json_data);
-    let current_level = json_data.levels.get(&json_data.current_level);
+    let temp_handler = json_handler.clone();
+    let current_level = temp_handler.current_level()?;
 
     println!("Current Level: {:?}", current_level);
     // needs to create a file in /tmp, which will be regularly written to and cleared out in order
@@ -201,11 +231,13 @@ fn main() -> Result<()> {
         fs::File::create(TMP_FILE_PATH)?;
         match &args.command {
             Some(Commands::Play { level, interactive }) => {
+                println!("play_level argument detected before launching shell");
                 Message::Play(level.to_owned(), *interactive).send_message()?;
                 if let Some(selected_level) = level {
-                    json_data.current_level = selected_level.to_owned();
-                    let data = serde_json::to_vec_pretty(&json_data)?;
-                    writeable_json_file.write_all(&data)?;
+                    //json_data.current_level = selected_level.to_owned();
+                    //let data = serde_json::to_vec_pretty(&json_data)?;
+                    //writeable_json_file.write_all(&data)?;
+                    json_handler.save_level_data(selected_level.into())?;
                 }
             }
             Some(Commands::End { early: _ }) => {
@@ -229,11 +261,13 @@ fn main() -> Result<()> {
         // Only triggers if the user has selected a level on initialisation
         match args.command {
             Some(Commands::Play { level, interactive }) => {
+                println!("play_level argument detected inside shell");
                 Message::Play(level.to_owned(), interactive).send_message()?;
                 if let Some(selected_level) = level {
-                    json_data.current_level = selected_level;
-                    let data = serde_json::to_vec_pretty(&json_data)?;
-                    writeable_json_file.write_all(&data)?;
+                    json_handler.save_level_data(selected_level)?;
+                    //json_data.current_level = selected_level;
+                    //let data = serde_json::to_vec_pretty(&json_data)?;
+                    //writeable_json_file.write_all(&data)?;
                 }
             }
 
@@ -246,101 +280,44 @@ fn main() -> Result<()> {
         if let Some(level) = current_level
             && env::var("IN_LEVEL")? == "1"
         {
-            process_level(level)?;
-        }
-    }
+            println!("in game process");
 
-    Ok(())
-}
+            let mut level_complete = false;
+            match &level.level_type {
+                LevelType::Command { checker_command } => {
+                    let option_user_command = Args::parse().user_command;
+                    if let Some(user_command) = option_user_command {
+                        // function to check output of the command
+                        level_complete = check_command_question(checker_command, &user_command)?;
+                    }
+                }
+                LevelType::File {
+                    target_file,
+                    correct_content,
+                } => {
+                    level_complete = check_file_question(target_file, correct_content)?;
+                }
+                LevelType::Directory {
+                    target_directory,
+                    correct_file_tree,
+                } => {
+                    level_complete = check_directory_question(
+                        target_directory,
+                        correct_file_tree.clone().to_vec(),
+                    )?;
+                }
+            }
 
-fn process_level(current_level: &Level) -> Result<()> {
-    println!("in game process");
-
-    let mut level_complete = false;
-    match &current_level.level_type {
-        LevelType::Command { checker_command } => {
-            let option_user_command = Args::parse().user_command;
-            if let Some(user_command) = option_user_command {
-                // function to check output of the command
-                level_complete = check_command_question(checker_command, &user_command)?;
+            // needs more logic
+            if level_complete {
+                println!("Level has been completed");
+                Message::End(false).send_message()?;
+            }
+            // this else statement is temporary, for debugging and testing
+            else {
+                println!("Not complete");
             }
         }
-        LevelType::File {
-            target_file,
-            correct_content,
-        } => {
-            level_complete = check_file_question(target_file, correct_content)?;
-        }
-        LevelType::Directory {
-            target_directory,
-            correct_file_tree,
-        } => {
-            level_complete =
-                check_directory_question(target_directory, correct_file_tree.clone().to_vec())?;
-        }
-    }
-
-    // needs more logic
-    if level_complete {
-        println!("Level has been completed");
-        complete()?;
-    }
-    // this else statement is temporary, for debugging and testing
-    else {
-        println!("Not complete");
-    }
-
-    Ok(())
-}
-
-fn create_tmp_file() -> Result<()> {
-    fs::File::create(TMP_FILE_PATH)?;
-    Ok(())
-}
-
-// starts processes needed for playing a level, by default would play the 'current_level' set
-// otherwise, if a level is provided then it should select that as the current_level and play it
-// instead
-fn play(level: Option<String>, interactive: bool) -> Result<String> {
-    println!("Playing level {:?}", &level);
-    // should open interactive level select menu
-    if interactive {
-        println!("Interative flag raised");
-        return Ok("-1".to_owned());
-    }
-
-    if env::var("IN_LEVEL").is_ok() {
-        if env::var("IN_LEVEL")? == "0" {
-            println!("Not in level, changing level");
-            fs::write(TMP_FILE_PATH, "IN_LEVEL=1")?;
-            //Command::new("bash")
-            //    .arg("-c")
-            //    .arg("export IN_LEVEL=1")
-            //    .status()?;
-            //Command::new("bash")
-            //    .arg("-c")
-            //    .arg("TEST='This is a test'")
-            //    .status()?;
-        } else {
-            // potential room for allowing mid level jumping
-            println!("Already in level");
-        }
-
-        println!("After setting IN_LEVEL: {}", env::var("IN_LEVEL")?);
-    }
-
-    if let Some(level) = level {
-        Ok(level)
-    } else {
-        Ok("-1".to_owned())
-    }
-}
-
-fn complete() -> Result<()> {
-    if env::var("IN_LEVEL")? == "1" {
-        Command::new("bash").arg("-c").arg("IN_LEVEL=0").status()?;
-    } else {
-        println!("Not currently in a level");
     }
 
     Ok(())
@@ -389,11 +366,6 @@ fn check_home(user_command: &str) {
     } else {
         println!("Checker condition not met");
     }
-}
-
-// must update and serialise the contents of data.json (stored in dedicated .local/share directory)
-fn update_user_data() -> Result<()> {
-    Ok(())
 }
 
 fn check_command_question(checking_command: &str, user_command: &str) -> Result<bool> {
