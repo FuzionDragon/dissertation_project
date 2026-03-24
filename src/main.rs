@@ -1,5 +1,5 @@
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use clap::Parser;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -8,6 +8,11 @@ use std::{
     io::prelude::*,
     process::Command,
 };
+
+mod args;
+mod level_checker;
+use crate::args::*;
+use crate::level_checker::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct Level {
@@ -41,41 +46,6 @@ struct DirectoryItem {
     content: Option<String>,
 }
 
-// needs persistent storage of the user data: current level, completed level, score, etc, inside a
-// json file, to be modified and fetched on each start and finish of a level.
-// the bash env vars will hold temporary data like: current level (so it can be fetched from the
-// file like a dictionary), number of commands used (possibly not including certain ones like ls
-// and other commands that will be constantly used), other current level details the user will need
-// which can save having to fetch the data from the file again.
-#[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
-struct Args {
-    /// piped user output, to be checked
-    #[arg(short, long, hide = true)]
-    user_command: Option<String>,
-
-    #[command(subcommand)]
-    command: Option<Commands>,
-}
-
-#[derive(Subcommand, Debug)]
-enum Commands {
-    /// selecting level to be played, by default will play the current level
-    Play {
-        #[arg(short, long)]
-        level: Option<String>,
-
-        #[arg(short, long, default_value_t = false)]
-        interactive: bool,
-    },
-
-    /// Ends the current level early, otherwise does nothing
-    End {
-        #[arg(short, long, default_value_t = false)]
-        early: bool,
-    },
-}
-
 // to pass data from Rust to Bash
 enum Message {
     Play(Option<String>, bool),
@@ -91,7 +61,7 @@ impl Message {
     const END_LEVEL: &str = "END_LEVEL";
 
     // needs to take in JsonHandler as param
-    fn send_message(&self) -> Result<()> {
+    fn send_message(&self, json_handler: &JsonHandler) -> Result<()> {
         match self {
             Message::Play(level, interactive) => {
                 println!("Sending selected level");
@@ -107,7 +77,7 @@ impl Message {
                 } else {
                     // needs to fetch current_level in json_data
                     println!("Level command ran but without specified level");
-                    selected_level = "-1";
+                    selected_level = &json_handler.data.current_level;
                 }
 
                 let command = Self::SELECTED_LEVEL;
@@ -224,30 +194,26 @@ fn main() -> Result<()> {
     let current_level = temp_handler.current_level()?;
 
     println!("Current Level: {:?}", current_level);
+
+    fs::File::create(TMP_FILE_PATH)?;
+    if let Some(Commands::Play { level, interactive }) = &args.command {
+        println!("play_level argument detected inside shell");
+        Message::Play(level.to_owned(), *interactive).send_message(&json_handler)?;
+        if let Some(selected_level) = level {
+            json_handler.save_level_data(selected_level.to_owned())?;
+        }
+    }
+
     // needs to create a file in /tmp, which will be regularly written to and cleared out in order
     // for the Bash trap to capture and read
     if env::var("APP_ACTIVE").is_err() {
-        // checks if there is a specified level
-        fs::File::create(TMP_FILE_PATH)?;
-        match &args.command {
-            Some(Commands::Play { level, interactive }) => {
-                println!("play_level argument detected before launching shell");
-                Message::Play(level.to_owned(), *interactive).send_message()?;
-                if let Some(selected_level) = level {
-                    //json_data.current_level = selected_level.to_owned();
-                    //let data = serde_json::to_vec_pretty(&json_data)?;
-                    //writeable_json_file.write_all(&data)?;
-                    json_handler.save_level_data(selected_level.into())?;
-                }
-            }
-            Some(Commands::End { early: _ }) => {
-                println!(
-                    "Not currently in the learning environment\nUse this command when inside the learning environment and during a level"
-                );
-                return Ok(());
-            }
-            None => (),
+        if let Some(Commands::End { early: _ }) = args.command {
+            println!(
+                "Not currently in the learning environment\nUse this command when inside the learning environment and during a level"
+            );
+            return Ok(());
         }
+
         let command = format!("bash --rcfile {bashrc_path}");
         Command::new("bash")
             .arg("-c")
@@ -257,26 +223,11 @@ fn main() -> Result<()> {
     } else {
         println!("App is active");
 
-        println!("main print IN_LEVEL: {}", env::var("IN_LEVEL")?);
         // Only triggers if the user has selected a level on initialisation
-        match args.command {
-            Some(Commands::Play { level, interactive }) => {
-                println!("play_level argument detected inside shell");
-                Message::Play(level.to_owned(), interactive).send_message()?;
-                if let Some(selected_level) = level {
-                    json_handler.save_level_data(selected_level)?;
-                    //json_data.current_level = selected_level;
-                    //let data = serde_json::to_vec_pretty(&json_data)?;
-                    //writeable_json_file.write_all(&data)?;
-                }
-            }
-
-            Some(Commands::End { early }) => {
-                Message::End(early).send_message()?;
-            }
-
-            None => (),
+        if let Some(Commands::End { early }) = args.command {
+            Message::End(early).send_message(&json_handler)?;
         }
+
         if let Some(level) = current_level
             && env::var("IN_LEVEL")? == "1"
         {
@@ -311,7 +262,7 @@ fn main() -> Result<()> {
             // needs more logic
             if level_complete {
                 println!("Level has been completed");
-                Message::End(false).send_message()?;
+                Message::End(false).send_message(&json_handler)?;
             }
             // this else statement is temporary, for debugging and testing
             else {

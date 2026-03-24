@@ -6,8 +6,8 @@
       "level_description": "description of level",
       "level_type": {
         "File": {
-          "target_file": "/tmp/hello_test",
-          "correct_content": "Hello World!"
+          "target_file": "path/to/file",
+          "correct_content": "content that must be present, also OPTIONAL"
         }
       },
       "highest_score": null,
