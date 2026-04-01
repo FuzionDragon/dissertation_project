@@ -1,28 +1,20 @@
 {
   "current_level": "1",
   "levels": {
-    "1": {
-      "level_title": "File question",
-      "level_description": "description of level",
-      "level_type": {
-        "File": {
-          "target_file": "/tmp/hello_test",
-          "correct_content": "Hello World!"
-        }
-      },
-      "highest_score": null,
-      "shortest_time": null
-    },
     "2": {
-      "level_title": "Directory question",
+      "level_title": "Directory question (optional)",
       "level_description": "description of level",
       "level_type": {
         "Directory": {
-          "target_directory": "path/to/directory",
+          "target_directory": "/tmp/test_dir",
           "correct_file_tree": [
             {
-              "name": "name of file or directory, should be in the form of a local path relative to target dir",
-              "content": "optional field for a file that should have text"
+              "name": "/hello",
+              "content": "hello"
+            },
+            {
+              "name": "/world/file.txt",
+              "content": "world!"
             }
           ]
         }
@@ -32,10 +24,34 @@
     },
     "0": {
       "level_title": "Command question",
-      "level_description": "description of level",
+      "level_description": "Use commands to list the home directory contents",
       "level_type": {
         "Command": {
-          "checker_command": "some command or script"
+          "checker_command": "ls ~"
+        }
+      },
+      "highest_score": null,
+      "shortest_time": null
+    },
+    "1": {
+      "level_title": "File question",
+      "level_description": "Create the file '/tmp/hello_test', with the text 'Hello World!'",
+      "level_type": {
+        "File": {
+          "target_file": "/tmp/hello_test",
+          "correct_content": "Hello World!"
+        }
+      },
+      "highest_score": null,
+      "shortest_time": null
+    },
+    "3": {
+      "level_title": "File question (empty)",
+      "level_description": "Create the file '/tmp/file_test'",
+      "level_type": {
+        "File": {
+          "target_file": "/tmp/file_test",
+          "correct_content": null
         }
       },
       "highest_score": null,

@@ -31,6 +31,12 @@ pub enum Commands {
     /// Ends the current level early, otherwise does nothing
     End {
         #[arg(short, long, default_value_t = false)]
-        early: bool,
+        completed: bool,
     },
+
+    /// Prints all levels
+    AllLevels,
+
+    /// Prints current level
+    CurrentLevel,
 }

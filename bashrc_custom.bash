@@ -9,8 +9,10 @@
 # Learning tool logic
 export APP_ACTIVE=1
 export IN_LEVEL=0
+export LEVEL_TYPE=""
 export CURRENT_LEVEL=-1
 export TMP_FILE="/tmp/tmp_cli_learn"
+export TEST_FILE="/tmp/tmp_test_file"
 
 # temporary, should be executable path in the future
 export PROJECT_PATH="$(pwd)/Cargo.toml"
@@ -18,13 +20,12 @@ export PROJECT_PATH="$(pwd)/Cargo.toml"
 # temporary, needs to be location of binary during distribution
 alias run_binary='cargo run --manifest-path $PROJECT_PATH'
 alias check='cargo run --manifest-path $PROJECT_PATH --  --user-command '
-#alias play_level='run_binary --  play'
-#alias end_level='run_binary --  end && env_listener'
+alias current_level='cargo run --manifest-path $PROJECT_PATH -- current-level'
+alias all_levels='cargo run --manifest-path $PROJECT_PATH -- all-levels'
 
 alias ls='ls --color=auto'
 alias grep='grep --color=auto'
 PS1='[\u@\h \W]\$ '
-PROMPT_COMMAND=''
 
 export NUMBER_OF_USED_COMMANDS=0
 
@@ -38,6 +39,8 @@ echo "To close the game, run the 'exit' command"
 echo
 
 play_level () {
+  # $1 is the -l flag, $2 is the level number
+  echo "Play level"
   run_binary -- play $1 $2
   env_listener
 }
@@ -51,11 +54,13 @@ end_level () {
 env_listener () {
   if [[ -f $TMP_FILE ]]; then
     command="$(awk '{print $1}' $TMP_FILE)"
-    value="$(awk '{print $2}' $TMP_FILE)"
+    level="$(awk '{print $2}' $TMP_FILE)"
+    type="$(awk '{print $3}' $TMP_FILE)"
 
+    echo "env_listener"
     case $command in 
       "SELECTED_LEVEL")
-        if [[ $value == "-1" ]] then
+        if [[ $level == "-1" ]] then
           echo "Command provided but level is not selected"
           IN_LEVEL=0
           CURRENT_LEVEL=-1
@@ -63,7 +68,8 @@ env_listener () {
           echo "Level starting.."
           echo "If you want to end the level early, enter 'end_level' into the command line"
           IN_LEVEL=1
-          CURRENT_LEVEL=$value
+          CURRENT_LEVEL=$level
+          LEVEL_TYPE=$type
           echo "Playing level $CURRENT_LEVEL"
         fi
         ;;
@@ -73,14 +79,14 @@ env_listener () {
           echo "Ending level"
           IN_LEVEL=0
         else
-          echo "Currently still in level"
+          echo "Currently not in level"
         fi
         ;;
 
-      *)
-        # temporary
-        echo "Unknown command"
-        ;;
+      #*)
+      #  # temporary
+      #  echo "Unknown command"
+      #  ;;
     esac
 
     #cat $TMP_FILE
@@ -88,14 +94,40 @@ env_listener () {
   fi
 }
 
-debug_trap () {
+test_listener() {
+  if [[ -f $TEST_FILE ]]; then
+    contents=$(cat $TEST_FILE)
+    if [[ $contents == "TEST" ]] then
+      truncate $TEST_FILE --size 0
+      echo "SUCCESS" >> /tmp/tmp_test_file
+      exit
+    fi
+  fi
+}
+
+command_listener() {
   #echo "Command: $BASH_COMMAND with exit status $?";
+  #if [[ $IN_LEVEL -eq 1 ]] && [[ $LEVEL_TYPE == "COMMAND" ]]; then
+  if [[ $IN_LEVEL -eq 1 ]] && [[ $BASH_COMMAND != "file_listener" ]]; then
+    echo "Command Listener"
+    export TRAPPED_COMMAND="$BASH_COMMAND"
+    
+    #env_listener
+  fi
+}
+
+file_listener() {
+  #if [[ $IN_LEVEL -eq 1 ]] && [[ $LEVEL_TYPE == "FILE" ]]; then
   if [[ $IN_LEVEL -eq 1 ]]; then
-    check "$BASH_COMMAND"
+    echo "Trapped Command: $TRAPPED_COMMAND"
+    echo "File Listener"
+    check "$TRAPPED_COMMAND"
+    TRAPPED_COMMAND=""
+    env_listener
   fi
 }
 
 env_listener
-
-trap env_listener exit
-trap debug_trap debug
+test_listener
+PROMPT_COMMAND="file_listener"
+trap command_listener debug
