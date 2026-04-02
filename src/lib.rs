@@ -203,6 +203,7 @@ impl JsonHandler {
         let data: JsonData = serde_json::from_str(&raw_json)?;
         let path = path.to_owned();
 
+        //println!("Json Data: {:?}", data);
         Ok(JsonHandler { data, path })
     }
 

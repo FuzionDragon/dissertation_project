@@ -3,7 +3,8 @@ use clap::Parser;
 use serde::{Deserialize, Serialize};
 use std::{
     env::{self},
-    fs::{self},
+    fs::{self, remove_dir_all},
+    path::Path,
     process::Command,
 };
 
@@ -132,7 +133,31 @@ impl Level {
             }
         }
 
+        if level_complete {
+            self.clean_filesystem()?;
+        }
+
         Ok(level_complete)
+    }
+
+    fn clean_filesystem(&self) -> Result<()> {
+        if let LevelType::File {
+            target_file,
+            correct_content: _,
+        } = &self.level_type
+        {
+            fs::remove_file(target_file)?;
+        }
+
+        if let LevelType::Directory {
+            target_directory,
+            correct_file_tree: _,
+        } = &self.level_type
+        {
+            fs::remove_dir_all(target_directory)?;
+        }
+
+        Ok(())
     }
 
     // needs to be prettier
@@ -178,44 +203,13 @@ impl LevelType {
 pub struct DirectoryItem {
     name: String,
     content: Option<String>,
+    item_type: ItemType,
 }
 
-// different types of checkers: file based, directory based, output based
-// file and directory are self explanatory, simply check if they are in their place and the
-// contents are correct
-// output based will be based on if the user has entered a command and its output matches the one
-// required
-// minimum recommened commands used for the exercise
-//
-// lets have a level that asks the user to show their home directory
-// needs to check if the command entered by the user is successful, before checking its output and
-// comparing it to the checker
-//
-// this function below is used to show how the checker mechanism will work (for output)
-fn check_home(user_command: &str) {
-    let home = env::var("HOME").unwrap();
-    let list = Command::new("ls")
-        .arg(home)
-        .output()
-        .expect("unable to list home directory");
-
-    let user_command = Command::new("bash")
-        .arg("-c")
-        .arg(user_command)
-        .output()
-        .expect("unable to get output from user command");
-
-    let correct_output = String::from_utf8_lossy(&list.stdout);
-    let user_output = String::from_utf8_lossy(&user_command.stdout);
-
-    //println!("Home directory has {}", &correct_output);
-    //println!("User output is {}", &user_output);
-
-    if correct_output == user_output {
-        println!("Same out put detected, checker found condition has been met");
-    } else {
-        println!("Checker condition not met");
-    }
+#[derive(Serialize, Deserialize, Debug, Clone)]
+enum ItemType {
+    File,
+    Directory,
 }
 
 // requires being in the custom Bash shell for accuracy
@@ -239,7 +233,7 @@ fn check_command(checking_command: &str, user_command: &str) -> Result<bool> {
 // needs to remove the file after check is true
 fn check_file(target_file: &str, correct_content: &Option<String>) -> Result<bool> {
     if !fs::exists(target_file)? {
-        println!("Target file not found");
+        println!("File not found: {}", target_file);
         return Ok(false);
     }
     if let Some(content) = correct_content {
@@ -259,7 +253,10 @@ fn check_file(target_file: &str, correct_content: &Option<String>) -> Result<boo
             fs::remove_file(target_file)?;
             Ok(true)
         } else {
-            println!("Target file found but missing required content");
+            println!(
+                "File {} found but missing the required content: {}",
+                target_file, content
+            );
             Ok(false)
         }
     } else {
@@ -272,15 +269,25 @@ fn check_file(target_file: &str, correct_content: &Option<String>) -> Result<boo
 // contained files have the exact contents
 // needs more complex code, one that appends the directory item names onto the target_directory to
 // do stuff with it
+//
+// scrap all of the above, there is now a item_type entry with a corresponding ItemType enum
+// use that instead
 fn check_directory(target_directory: &str, correct_file_tree: Vec<DirectoryItem>) -> Result<bool> {
     for directory_item in correct_file_tree {
         let item_path = format!("{}/{}", target_directory, &directory_item.name);
-        if !fs::exists(&item_path)? {
-            return Ok(false);
-        } else if let Some(content) = directory_item.content
-            && fs::read_to_string(&item_path)? != content
-        {
-            return Ok(false);
+        let item = Path::new(&item_path);
+        match directory_item.item_type {
+            ItemType::File => {
+                if !check_file(&item_path, &directory_item.content)? {
+                    return Ok(false);
+                }
+            }
+            ItemType::Directory => {
+                if !item.is_dir() {
+                    println!("Missing directory: {}", item_path);
+                    return Ok(false);
+                }
+            }
         }
     }
 
