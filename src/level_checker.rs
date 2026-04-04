@@ -2,8 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use std::{
-    env::{self},
-    fs::{self, remove_dir_all},
+    fs::{self},
     path::Path,
     process::Command,
 };
@@ -26,6 +25,7 @@ mod test {
             level_type,
             highest_score: None,
             shortest_time: None,
+            commands_used: None,
         })
     }
 
@@ -85,11 +85,12 @@ mod test {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Level {
-    level_title: String,
-    level_description: String,
+    pub level_title: String,
+    pub level_description: String,
     pub level_type: LevelType,
-    highest_score: Option<i32>,
-    shortest_time: Option<f32>,
+    pub highest_score: Option<i32>,
+    pub shortest_time: Option<f32>,
+    pub commands_used: Option<i32>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -133,14 +134,10 @@ impl Level {
             }
         }
 
-        if level_complete {
-            self.clean_filesystem()?;
-        }
-
         Ok(level_complete)
     }
 
-    fn clean_filesystem(&self) -> Result<()> {
+    pub fn clean_filesystem(&self) -> Result<()> {
         if let LevelType::File {
             target_file,
             correct_content: _,
@@ -175,6 +172,11 @@ impl Level {
             println!("Shortest Time: {}", shortest_time);
         } else {
             println!("Shortest Time: N/A");
+        }
+        if let Some(command_count) = self.commands_used {
+            println!("Commands Used: {}", command_count);
+        } else {
+            println!("Commands Used: N/A");
         }
     }
 }
@@ -214,7 +216,6 @@ enum ItemType {
 
 // requires being in the custom Bash shell for accuracy
 fn check_command(checking_command: &str, user_command: &str) -> Result<bool> {
-    println!("Checking current command: {user_command}");
     let user_output = Command::new("bash").arg("-c").arg(user_command).output()?;
 
     let correct_output = Command::new("bash")
@@ -250,7 +251,6 @@ fn check_file(target_file: &str, correct_content: &Option<String>) -> Result<boo
             .unwrap_or(&fs::read_to_string(target_file)?)
             == content
         {
-            fs::remove_file(target_file)?;
             Ok(true)
         } else {
             println!(
@@ -260,7 +260,6 @@ fn check_file(target_file: &str, correct_content: &Option<String>) -> Result<boo
             Ok(false)
         }
     } else {
-        fs::remove_file(target_file)?;
         Ok(true)
     }
 }

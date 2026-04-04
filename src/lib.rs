@@ -99,8 +99,9 @@ mod test {
     // Message also needs testing
 }
 
-pub mod args;
-pub mod level_checker;
+mod args;
+mod level_checker;
+mod scoring;
 use crate::args::{Args, Commands};
 use crate::level_checker::*;
 
@@ -134,7 +135,7 @@ impl Message {
 
                 if let Some(some_level) = level {
                     println!("Level selected {some_level}");
-                    json_handler.save_level_data(some_level.to_owned())?;
+                    json_handler.set_current_level(some_level.to_owned())?;
                 } else {
                     // needs to fetch current_level in json_data
                     println!("Level command ran but without specified level, using current level");
@@ -164,10 +165,28 @@ impl Message {
                 let in_level = env::var("IN_LEVEL")?;
                 if in_level == "1" {
                     if *completed {
-                        println!("End of level, saving stats");
-                        // save logic
+                        println!("Level completed, saving stats");
+                        let time = scoring::calculate_time()?;
+                        let command_count = scoring::fetch_command_count()?;
+                        let mut current_level = json_handler.current_level()?.unwrap().to_owned();
+
+                        if current_level.shortest_time.is_none()
+                            || current_level.shortest_time > Some(time)
+                        {
+                            current_level.shortest_time = Some(time);
+                        }
+
+                        if current_level.commands_used.is_none()
+                            || current_level.commands_used > Some(command_count)
+                        {
+                            current_level.commands_used = Some(command_count);
+                        }
+
+                        //level.highest_score = ""
+
+                        json_handler.update_current_level(current_level)?;
                     } else {
-                        println!("completed ending of level");
+                        println!("Level ending early");
                     }
 
                     fs::write(TMP_FILE_PATH, Self::END_LEVEL)?;
@@ -207,12 +226,28 @@ impl JsonHandler {
         Ok(JsonHandler { data, path })
     }
 
-    fn save_level_data(&mut self, selected_level: String) -> Result<()> {
+    fn set_current_level(&mut self, selected_level: String) -> Result<()> {
         if !self.data.levels.contains_key(&selected_level) {
             bail!("No entry for entered level")
         }
 
         self.data.current_level = selected_level;
+        let mut write_handle = OpenOptions::new()
+            .write(true)
+            .append(false)
+            .open(&self.path)?;
+
+        write_handle.write_all(&serde_json::to_vec_pretty(&self.data)?)?;
+
+        Ok(())
+    }
+
+    fn update_current_level(&mut self, new_level_data: Level) -> Result<()> {
+        self.data
+            .levels
+            .entry(self.data.current_level.clone())
+            .and_modify(|l| *l = new_level_data);
+
         let mut write_handle = OpenOptions::new()
             .write(true)
             .append(false)
@@ -247,7 +282,7 @@ pub fn init() -> Result<()> {
     if let Some(Commands::Play { level, interactive }) = &args.command {
         Message::Play(level.to_owned(), *interactive).send_message(&mut json_handler)?;
         if let Some(selected_level) = level {
-            json_handler.save_level_data(selected_level.to_owned())?;
+            json_handler.set_current_level(selected_level.to_owned())?;
         }
     }
 
@@ -267,10 +302,11 @@ pub fn init() -> Result<()> {
 
         // Only triggers if the user has selected a level on initialisation
         if let Some(Commands::End { completed }) = args.command {
+            println!("Running ending level");
             Message::End(completed).send_message(&mut json_handler)?;
         }
 
-        if let Some(level) = json_handler.current_level()?
+        if let Some(level) = json_handler.clone().current_level()?
             && env::var("IN_LEVEL")? == "1"
         {
             println!("in game process");
@@ -278,6 +314,7 @@ pub fn init() -> Result<()> {
             if level.check()? {
                 println!("Level has been completed");
                 Message::End(true).send_message(&mut json_handler)?;
+                level.clean_filesystem()?;
             }
             // this else statement is temporary, for debugging and testing
             else {
@@ -334,6 +371,7 @@ fn create_config_path() -> Result<String> {
 fn print_all_levels(json_handler: &JsonHandler) -> Result<()> {
     println!("All Levels");
     for level in &json_handler.data.levels {
+        println!("ID: {}", level.0);
         level.1.print();
         println!();
     }
@@ -345,6 +383,7 @@ fn print_all_levels(json_handler: &JsonHandler) -> Result<()> {
 fn print_current_level(json_handler: &JsonHandler) -> Result<()> {
     if let Some(level) = json_handler.current_level()? {
         println!("Current Level:");
+        println!("ID: {}", json_handler.data.current_level);
         level.print();
     } else {
         bail!("No current level found")

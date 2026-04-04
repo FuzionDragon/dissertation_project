@@ -28,6 +28,7 @@ alias grep='grep --color=auto'
 PS1='[\u@\h \W]\$ '
 
 export NUMBER_OF_USED_COMMANDS=0
+export START_TIME=""
 
 echo "Welcome to the learning environment"
 echo "To get started, simply enter play_level into the command line to play the latest level"
@@ -45,9 +46,9 @@ play_level () {
   env_listener
 }
 
-end_level () {
-  run_binary -- end
-  env_listener
+end_level() {
+  echo "ending level"
+  run_binary -- end $1 $2 $3
 }
 
 # used for reading the temp file contents, and acting on certain instructions it states
@@ -57,7 +58,6 @@ env_listener () {
     level="$(awk '{print $2}' $TMP_FILE)"
     type="$(awk '{print $3}' $TMP_FILE)"
 
-    echo "env_listener"
     case $command in 
       "SELECTED_LEVEL")
         if [[ $level == "-1" ]] then
@@ -65,19 +65,25 @@ env_listener () {
           IN_LEVEL=0
           CURRENT_LEVEL=-1
         else
-          echo "Level starting.."
           echo "If you want to end the level early, enter 'end_level' into the command line"
+          current_level
           IN_LEVEL=1
           CURRENT_LEVEL=$level
           LEVEL_TYPE=$type
+          START_TIME="$(date +%S.%N)"
           echo "Playing level $CURRENT_LEVEL"
         fi
+
+        NUMBER_OF_USED_COMMANDS=0
         ;;
 
       "END_LEVEL")
         if [[ $IN_LEVEL == "1" || $IN_LEVEL == 1 ]] then
           echo "Ending level"
           IN_LEVEL=0
+          START_TIME=""
+          NUMBER_OF_USED_COMMANDS=0
+          # needs to submit these results (start and end msec and sec times, and also number of commands used)
         else
           echo "Currently not in level"
         fi
@@ -109,18 +115,14 @@ command_listener() {
   #echo "Command: $BASH_COMMAND with exit status $?";
   #if [[ $IN_LEVEL -eq 1 ]] && [[ $LEVEL_TYPE == "COMMAND" ]]; then
   if [[ $IN_LEVEL -eq 1 ]] && [[ $BASH_COMMAND != "file_listener" ]]; then
-    echo "Command Listener"
+    NUMBER_OF_USED_COMMANDS=$((NUMBER_OF_USED_COMMANDS+1))
     export TRAPPED_COMMAND="$BASH_COMMAND"
-    
-    #env_listener
   fi
 }
 
 file_listener() {
   #if [[ $IN_LEVEL -eq 1 ]] && [[ $LEVEL_TYPE == "FILE" ]]; then
   if [[ $IN_LEVEL -eq 1 ]]; then
-    echo "Trapped Command: $TRAPPED_COMMAND"
-    echo "File Listener"
     check "$TRAPPED_COMMAND"
     TRAPPED_COMMAND=""
     env_listener

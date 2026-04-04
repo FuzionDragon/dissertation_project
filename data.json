@@ -1,6 +1,32 @@
 {
-  "current_level": "2",
+  "current_level": "3",
   "levels": {
+    "1": {
+      "level_title": "File question",
+      "level_description": "Create the file '/tmp/hello_test', with the text 'Hello World!'",
+      "level_type": {
+        "File": {
+          "target_file": "/tmp/hello_test",
+          "correct_content": "Hello World!"
+        }
+      },
+      "highest_score": null,
+      "shortest_time": 4.3426476,
+      "commands_used": 1
+    },
+    "3": {
+      "level_title": "File question (empty)",
+      "level_description": "Create the file '/tmp/file_test'",
+      "level_type": {
+        "File": {
+          "target_file": "/tmp/file_test",
+          "correct_content": null
+        }
+      },
+      "highest_score": null,
+      "shortest_time": 14.8687935,
+      "commands_used": 3
+    },
     "2": {
       "level_title": "Directory question (optional)",
       "level_description": "Create the directory '/tmp/test_dir', then create the empty file 'hello', and finally create the 'world' subdirectory with the file 'file.txt' containing the word 'world!'",
@@ -27,19 +53,8 @@
         }
       },
       "highest_score": null,
-      "shortest_time": null
-    },
-    "3": {
-      "level_title": "File question (empty)",
-      "level_description": "Create the file '/tmp/file_test'",
-      "level_type": {
-        "File": {
-          "target_file": "/tmp/file_test",
-          "correct_content": null
-        }
-      },
-      "highest_score": null,
-      "shortest_time": null
+      "shortest_time": null,
+      "commands_used": null
     },
     "0": {
       "level_title": "Command question",
@@ -50,19 +65,8 @@
         }
       },
       "highest_score": null,
-      "shortest_time": null
-    },
-    "1": {
-      "level_title": "File question",
-      "level_description": "Create the file '/tmp/hello_test', with the text 'Hello World!'",
-      "level_type": {
-        "File": {
-          "target_file": "/tmp/hello_test",
-          "correct_content": "Hello World!"
-        }
-      },
-      "highest_score": null,
-      "shortest_time": null
+      "shortest_time": 2.2499352,
+      "commands_used": 1
     }
   }
 }
