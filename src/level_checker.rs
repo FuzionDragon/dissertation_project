@@ -8,6 +8,7 @@ use std::{
 };
 
 use crate::args::Args;
+use crate::scoring::Rank;
 
 #[cfg(test)]
 mod test {
@@ -26,6 +27,7 @@ mod test {
             highest_score: None,
             shortest_time: None,
             commands_used: None,
+            rank: None,
         })
     }
 
@@ -91,6 +93,7 @@ pub struct Level {
     pub highest_score: Option<i32>,
     pub shortest_time: Option<f32>,
     pub commands_used: Option<i32>,
+    pub rank: Option<Rank>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -177,6 +180,11 @@ impl Level {
             println!("Commands Used: {}", command_count);
         } else {
             println!("Commands Used: N/A");
+        }
+        if let Some(rank) = &self.rank {
+            println!("Rank: {:?}", rank);
+        } else {
+            println!("Rank: N/A");
         }
     }
 }

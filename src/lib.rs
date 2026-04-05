@@ -120,6 +120,7 @@ impl Message {
     const END_LEVEL: &str = "END_LEVEL";
 
     // needs to take in JsonHandler as param
+
     fn send_message(&self, json_handler: &mut JsonHandler) -> Result<()> {
         fs::File::create(TMP_FILE_PATH)?;
         match self {
@@ -168,10 +169,12 @@ impl Message {
                         println!("Level completed, saving stats");
                         let time = scoring::calculate_time()?;
                         let command_count = scoring::fetch_command_count()?;
+                        let score = scoring::calculate_score(time, command_count)?;
+
                         let mut current_level = json_handler.current_level()?.unwrap().to_owned();
 
                         if current_level.shortest_time.is_none()
-                            || current_level.shortest_time > Some(time)
+                            || current_level.shortest_time > Some(time) && time > 0.
                         {
                             current_level.shortest_time = Some(time);
                         }
@@ -182,7 +185,12 @@ impl Message {
                             current_level.commands_used = Some(command_count);
                         }
 
-                        //level.highest_score = ""
+                        if current_level.highest_score.is_none()
+                            || current_level.highest_score < Some(score) && score > 0
+                        {
+                            current_level.highest_score = Some(score);
+                            current_level.rank = Some(scoring::assign_rank(score)?);
+                        }
 
                         json_handler.update_current_level(current_level)?;
                     } else {
