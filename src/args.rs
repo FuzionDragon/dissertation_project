@@ -13,17 +13,21 @@ pub struct Args {
     #[arg(short, long, hide = true)]
     pub user_command: Option<String>,
 
+    /// Use the -h flag on any command with options to find what they do
     #[command(subcommand)]
     pub command: Option<Commands>,
 }
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    /// selecting level to be played, by default will play the current level
+    /// Starts the currently selected level.
+    /// Use the -l flag to select level manually or use the -i flag to use the level select menu
     Play {
+        /// Manually selects current level by ID and starts it
         #[arg(short, long)]
         level: Option<String>,
 
+        /// Opens interactive menu to select the current level and starts it
         #[arg(short, long, default_value_t = false)]
         interactive: bool,
     },
@@ -35,8 +39,14 @@ pub enum Commands {
     },
 
     /// Prints all levels
-    AllLevels,
+    All,
 
     /// Prints current level
-    CurrentLevel,
+    Current {
+        #[arg(short, long, default_value_t = false)]
+        short: bool,
+    },
+
+    /// Resets all scores and user data
+    Restart,
 }

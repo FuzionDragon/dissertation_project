@@ -1,27 +1,84 @@
 {
   "current_level": "0",
   "levels": {
+    "0": {
+      "level_title": "Introduction: ls",
+      "level_description": "The command line is a powerful tool that allows great control over your computer, however it is quite daunting for new users who aren't familiar with it. These coming levels will teach you essential commands that you will be using frequently in the command line.\n\nThe first command I will teach you is 'ls', which lists your current working directory's files and sub-directories (directories are also known as folders). Ls can be used without a path provided to print the current working directory or a different one when provided a path (for example, if you want to list a directory named 'Videos' in your current location, it is done by entering 'ls /Videos').\n\nAs your first task, I want you to simply enter 'ls' into the terminal.\n\nTip: If you want a more in-depth look into a certain command, use the 'man' command to take you into a detailed page of the commands arguments and options.",
+      "level_type": {
+        "Command": {
+          "checker_command": "ls"
+        }
+      },
+      "highest_score": null,
+      "shortest_time": null,
+      "commands_used": null,
+      "rank": null
+    },
+    "1": {
+      "level_title": "Cd and Home",
+      "level_description": "One of the most important directories on Linux is the Home directory, a literal home for your user files and directories. The full path to Home is generally '/home/<username>', but due to how frequently used the Home directory is, there are shortened paths '$HOME' and its even shorter form '~' that can be used instead.\n\nCd is a core command that allows you to move into directories relative to where you are by providing a directory name or moving backwards using '../' to move back out of the current directory (which you can chain to move backwards another directory). Entering 'cd ~' works but by default Cd will change the user directory into Home if there isn't a path provided. Also, if you use cd on the wrong directory, you can return to where you were previously using 'cd -'.\n\nWith that in mind, I want you to list the Home directory. This can be done either from the Home directory itself or from wherever you are on the system using ls followed by the Home path talked about earlier.",
+      "level_type": {
+        "Command": {
+          "checker_command": "ls ~"
+        }
+      },
+      "highest_score": null,
+      "shortest_time": null,
+      "commands_used": null,
+      "rank": null
+    },
     "2": {
-      "level_title": "Directory question (optional)",
-      "level_description": "Create the directory '/tmp/test_dir', then create the empty file 'hello', and finally create the 'world' subdirectory with the file 'file.txt' containing the word 'world!'",
+      "level_title": "",
+      "level_description": "One more level before we move on, if you remember in the list of files and directories in your Home directory, there is a directory named Downloads.\n\nI want you to list the contents of the Downloads directory for me.\n\nTip: Pressing Tab when entering arguments allows auto-completion or printing of suggestions for you to enter. In the context of using cd, pressing Tab prints all the possible directories to go into based on what you have typed or completes the command for you with the closest matching path.",
+      "level_type": {
+        "Command": {
+          "checker_command": "ls ~/Downloads"
+        }
+      },
+      "highest_score": null,
+      "shortest_time": null,
+      "commands_used": null,
+      "rank": null
+    },
+    "3": {
+      "level_title": "File creation",
+      "level_description": "For the purpose of future levels involving the creating and deleting of files and directories, we will be carrying these out in a different directory that will ensure a safe place to play around in. So, I want you to cd into the Temp directory (path being '/tmp'), a Linux directory which is cleared on rebooting the computer.\n\nThe 'touch' command allows you to create new empty files with a given name. Like with the cd command, if you want to create a file elsewhere in the filesystem, you will have to give a file path you want to create the file in ending with the name.\n\nIn the Temp directory, I want you to create a file named 'hello_world'.\n\nNote: Learn_cli removes the files and/or directories it asks the user to create, but not any files that don't match the exact naming or paths it is asking for.",
+      "level_type": {
+        "File": {
+          "target_file": "/tmp/hello_world",
+          "correct_content": null
+        }
+      },
+      "highest_score": null,
+      "shortest_time": null,
+      "commands_used": null,
+      "rank": null
+    },
+    "4": {
+      "level_title": "Echo and Pipes",
+      "level_description": "Now that you know how to create empty files from the previous level, lets find out how to create files with text in the. You could use a terminal based text editor like 'nano', which is preinstalled on most machines, or we could use the 'echo' command for files containing a short amount of text.\n\nEcho displays the message the user gives as an argument. It is also used for printing out enviromental variables on the system like '$USER', which holds the username (environmental variables need to be specified with the '$' followed by their name). With echo, we can use a concept called 'pipes' in order to use that printed output from the command and redirect it into a file. We use the '>' symbol to either create a new file containing the command output or completely overrides an existing one with its contents. For example, if I want a file name 'hello' to contain the message 'Hello World!', I would need to enter 'echo 'Hello World!' > hello'.\n\nI want you to create the file 'current_path' in the Temp directory which contains the value of the $PWD variable, which is the variable holding the current directory you are in (which should be the Temp directory).",
+      "level_type": {
+        "File": {
+          "target_file": "/tmp/current_path",
+          "correct_content": "/tmp"
+        }
+      },
+      "highest_score": null,
+      "shortest_time": null,
+      "commands_used": null,
+      "rank": null
+    },
+    "5": {
+      "level_title": "Creating directories",
+      "level_description": "Now you know how to create files, how do we remove ones we don't want? We use the command 'rm' on files we want to delete (or using 'rm -r' to delete a directory and its contents). This will be useful for this task which involves creating a directory with specifically named files inside of them. Speaking of which, how do we create directories?\n\nThe command 'mkdir' is used to create new directories, which can then populate using new files and other sub-directories.\n\nFor this level, create a directory in the Temp directory called 'message', containing an empty file named 'hello_world'. Remember from the previous levels, you can either do this by changing into this new directory or providing a full path ending with the file you want to create.",
       "level_type": {
         "Directory": {
-          "target_directory": "/tmp/test_dir",
+          "target_directory": "/tmp/message",
           "correct_file_tree": [
             {
-              "name": "hello",
-              "content": null,
-              "item_type": "File"
-            },
-            {
-              "name": "world",
-              "content": null,
-              "item_type": "Directory"
-            },
-            {
-              "name": "world/file.txt",
-              "content": "world!",
-              "item_type": "File"
+              "name": "hello_world",
+              "item_type": "File",
+              "content": null
             }
           ]
         }
@@ -31,26 +88,12 @@
       "commands_used": null,
       "rank": null
     },
-    "0": {
-      "level_title": "Command question",
-      "level_description": "Use commands to list the home directory contents",
+    "6": {
+      "level_title": "Reading from files",
+      "level_description": "Reading file content from the command line can be done in many ways, the easiest being through the 'cat' command. Cat is used to print the contents of one or more files to the user.\n\nFor this level, I want you to print the contents of the '/etc/hostname' file, a text file containing the name of the computer.",
       "level_type": {
         "Command": {
-          "checker_command": "ls ~"
-        }
-      },
-      "highest_score": 116,
-      "shortest_time": 1.56,
-      "commands_used": 1,
-      "rank": "Gold"
-    },
-    "3": {
-      "level_title": "File question (empty)",
-      "level_description": "Create the file '/tmp/file_test'",
-      "level_type": {
-        "File": {
-          "target_file": "/tmp/file_test",
-          "correct_content": null
+          "checker_command": "cat /etc/hostname"
         }
       },
       "highest_score": null,
@@ -58,13 +101,29 @@
       "commands_used": null,
       "rank": null
     },
-    "1": {
-      "level_title": "File question",
-      "level_description": "Create the file '/tmp/hello_test', with the text 'Hello World!'",
+    "7": {
+      "level_title": "Last Level: Putting it all together",
+      "level_description": "You learned how to use cat in the last level, and like with the echo command, it can be used to redirect the printed contents into a file. Something like 'cat 'first_file' 'second_file' > 'file_output''.\n\nFor this level, I want you to create a directory called 'messages' in the Temp directory. In this directory, I want you to create the files 'hello' and 'world', with content matching their respective file names. After that, I want you to use the cat command on both files and redirect that output into a new file 'hello_world', specifically in the order of 'hello' followed by 'world'. This should create / append to a file containing the two outputs separated by a new line",
       "level_type": {
-        "File": {
-          "target_file": "/tmp/hello_test",
-          "correct_content": "Hello World!"
+        "Directory": {
+          "target_directory": "/tmp/messages",
+          "correct_file_tree": [
+            {
+              "name": "hello",
+              "item_type": "File",
+              "content": "hello"
+            },
+            {
+              "name": "world",
+              "item_type": "File",
+              "content": "world"
+            },
+            {
+              "name": "hello_world",
+              "item_type": "File",
+              "content": "hello\nworld"
+            }
+          ]
         }
       },
       "highest_score": null,

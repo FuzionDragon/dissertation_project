@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
+use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use std::{
     fs::{self},
@@ -85,7 +86,7 @@ mod test {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Level {
     pub level_title: String,
     pub level_description: String,
@@ -96,7 +97,7 @@ pub struct Level {
     pub rank: Option<Rank>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum LevelType {
     Command {
         checker_command: String,
@@ -109,6 +110,21 @@ pub enum LevelType {
         target_directory: String,
         correct_file_tree: Vec<DirectoryItem>,
     },
+}
+
+// implicit assumption that an item with contents is a file, reguardless if empty or not this field
+// will need to be added in the json
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct DirectoryItem {
+    name: String,
+    content: Option<String>,
+    item_type: ItemType,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+enum ItemType {
+    File,
+    Directory,
 }
 
 impl Level {
@@ -160,32 +176,41 @@ impl Level {
         Ok(())
     }
 
-    // needs to be prettier
     pub fn print(&self) {
-        println!("Title: {}", self.level_title);
-        println!("Description: {}", self.level_description);
-        println!("Level Type: {}", self.level_type.as_str());
+        println!("{}: {}", "Title".bold(), self.level_title);
+        println!("{}: \n{}", "Instructions".bold(), self.level_description);
+        println!("{}: {}", "Level Type".bold(), self.level_type.as_str());
 
         if let Some(highscore) = self.highest_score {
-            println!("Highscore: {}", highscore);
+            println!("{}: {}", "Highscore".bold(), highscore);
         } else {
-            println!("Highscore: N/A");
+            println!("{}: N/A", "Highscore".bold());
         }
         if let Some(shortest_time) = self.shortest_time {
-            println!("Shortest Time: {}", shortest_time);
+            println!("{}: {}", "Shortest Time".bold(), shortest_time);
         } else {
-            println!("Shortest Time: N/A");
+            println!("{}: N/A", "Shortest Time".bold());
         }
         if let Some(command_count) = self.commands_used {
-            println!("Commands Used: {}", command_count);
+            println!("{}: {}", "Number of Commands Used".bold(), command_count);
         } else {
-            println!("Commands Used: N/A");
+            println!("{}: N/A", "Number of Commands Used".bold());
         }
         if let Some(rank) = &self.rank {
-            println!("Rank: {:?}", rank);
+            let rank_string = match rank {
+                Rank::Gold => rank.as_str().yellow(),
+                Rank::Silver => rank.as_str().white(),
+                Rank::Bronze => rank.as_str().red(),
+            };
+            println!("{}: {}", "Rank".bold(), rank_string);
         } else {
-            println!("Rank: N/A");
+            println!("{}: N/A", "Rank".bold());
         }
+    }
+
+    pub fn print_essential(&self) {
+        println!("{}", self.level_title.bold());
+        println!("{}", self.level_description);
     }
 }
 
@@ -207,21 +232,6 @@ impl LevelType {
     }
 }
 
-// implicit assumption that an item with contents is a file, reguardless if empty or not this field
-// will need to be added in the json
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct DirectoryItem {
-    name: String,
-    content: Option<String>,
-    item_type: ItemType,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-enum ItemType {
-    File,
-    Directory,
-}
-
 // requires being in the custom Bash shell for accuracy
 fn check_command(checking_command: &str, user_command: &str) -> Result<bool> {
     let user_output = Command::new("bash").arg("-c").arg(user_command).output()?;
@@ -234,6 +244,7 @@ fn check_command(checking_command: &str, user_command: &str) -> Result<bool> {
     if correct_output == user_output {
         Ok(true)
     } else {
+        println!("Incorrect command entered");
         Ok(false)
     }
 }
@@ -242,28 +253,17 @@ fn check_command(checking_command: &str, user_command: &str) -> Result<bool> {
 // needs to remove the file after check is true
 fn check_file(target_file: &str, correct_content: &Option<String>) -> Result<bool> {
     if !fs::exists(target_file)? {
-        println!("File not found: {}", target_file);
+        println!("File not found: {}", target_file.bold());
         return Ok(false);
     }
     if let Some(content) = correct_content {
-        println!("content: {:?}", content);
-        println!(
-            "{}",
-            fs::read_to_string(target_file)?
-                .strip_suffix("\n")
-                .unwrap_or(&fs::read_to_string(target_file)?)
-        );
-
-        if fs::read_to_string(target_file)?
-            .strip_suffix("\n")
-            .unwrap_or(&fs::read_to_string(target_file)?)
-            == content
-        {
+        if fs::read_to_string(target_file)?.trim() == content {
             Ok(true)
         } else {
             println!(
                 "File {} found but missing the required content: {}",
-                target_file, content
+                target_file.bold(),
+                content.bold()
             );
             Ok(false)
         }
@@ -272,13 +272,6 @@ fn check_file(target_file: &str, correct_content: &Option<String>) -> Result<boo
     }
 }
 
-// needs to check stuff like correct file tree structure of the directory, and also if the
-// contained files have the exact contents
-// needs more complex code, one that appends the directory item names onto the target_directory to
-// do stuff with it
-//
-// scrap all of the above, there is now a item_type entry with a corresponding ItemType enum
-// use that instead
 fn check_directory(target_directory: &str, correct_file_tree: Vec<DirectoryItem>) -> Result<bool> {
     for directory_item in correct_file_tree {
         let item_path = format!("{}/{}", target_directory, &directory_item.name);
@@ -291,7 +284,7 @@ fn check_directory(target_directory: &str, correct_file_tree: Vec<DirectoryItem>
             }
             ItemType::Directory => {
                 if !item.is_dir() {
-                    println!("Missing directory: {}", item_path);
+                    println!("Missing directory: {}", item_path.bold());
                     return Ok(false);
                 }
             }

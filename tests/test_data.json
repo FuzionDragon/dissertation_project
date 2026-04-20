@@ -1,45 +1,76 @@
 {
   "current_level": "1",
   "levels": {
-    "1": {
-      "level_title": "File question",
-      "level_description": "description of level",
+    "0": {
+      "level_title": "Command question",
+      "level_description": "Use commands to list the home directory contents",
       "level_type": {
-        "File": {
-          "target_file": "path/to/file",
-          "correct_content": "content that must be present, also OPTIONAL"
+        "Command": {
+          "checker_command": "ls ~"
         }
       },
-      "highest_score": null,
-      "shortest_time": null
+      "highest_score": 20,
+      "shortest_time": 3.5,
+      "commands_used": 2,
+      "rank": "Gold"
     },
-    "2": {
-      "level_title": "Directory question",
-      "level_description": "description of level",
+    "3": {
+      "level_title": "Directory question (optional)",
+      "level_description": "Create the directory '/tmp/test_dir', then create the empty file 'hello', and finally create the 'world' subdirectory with the file 'file.txt' containing the word 'world!'",
       "level_type": {
         "Directory": {
-          "target_directory": "path/to/directory",
+          "target_directory": "/tmp/test_dir",
           "correct_file_tree": [
             {
-              "name": "name of file or directory, should be in the form of a local path relative to target dir",
-              "content": "optional field for a file that should have text"
+              "name": "hello",
+              "content": null,
+              "item_type": "File"
+            },
+            {
+              "name": "world",
+              "content": null,
+              "item_type": "Directory"
+            },
+            {
+              "name": "world/file.txt",
+              "content": "world!",
+              "item_type": "File"
             }
           ]
         }
       },
       "highest_score": null,
-      "shortest_time": null
+      "shortest_time": null,
+      "commands_used": null,
+      "rank": null
     },
-    "0": {
-      "level_title": "Command question",
-      "level_description": "description of level",
+    "1": {
+      "level_title": "File question (empty)",
+      "level_description": "Create the file '/tmp/file_test'",
       "level_type": {
-        "Command": {
-          "checker_command": "some command or script"
+        "File": {
+          "target_file": "/tmp/file_test",
+          "correct_content": null
+        }
+      },
+      "highest_score": 20,
+      "shortest_time": 3.5,
+      "commands_used": 2,
+      "rank": "Gold"
+    },
+    "2": {
+      "level_title": "File question",
+      "level_description": "Create the file '/tmp/hello_test', with the text 'Hello World!'",
+      "level_type": {
+        "File": {
+          "target_file": "/tmp/hello_test",
+          "correct_content": "Hello World!"
         }
       },
       "highest_score": null,
-      "shortest_time": null
+      "shortest_time": null,
+      "commands_used": null,
+      "rank": null
     }
   }
 }

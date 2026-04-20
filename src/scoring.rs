@@ -4,34 +4,36 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 const START_TIME: &str = "START_TIME";
-const START_TIME_WEIGHT: f32 = 0.8;
+const END_TIME: &str = "END_TIME";
+const START_TIME_WEIGHT: f32 = 0.7;
 const COMMANDS_USED: &str = "NUMBER_OF_USED_COMMANDS";
-const COMMANDS_USED_WEIGHT: f32 = 0.5;
+const COMMANDS_USED_WEIGHT: f32 = 0.3;
 const GOLD_SCORE_LIMIT: f32 = 7.;
 const SILVER_SCORE_LIMIT: f32 = 20.;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum Rank {
     Gold,
     Silver,
     Bronze,
 }
 
+impl Rank {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Rank::Gold => "Gold",
+
+            Rank::Silver => "Silver",
+
+            Rank::Bronze => "Bronze",
+        }
+    }
+}
+
 // to 2 decimal points
 pub fn calculate_time() -> Result<f32> {
     let start_time = env::var(START_TIME)?.parse::<f32>()?;
-
-    let command_output = Command::new("bash")
-        .arg("-c")
-        .arg("date +%S.%N")
-        .output()?
-        .stdout;
-
-    let end_time_raw = str::from_utf8(&command_output)?;
-    let end_time = end_time_raw
-        .strip_suffix("\n")
-        .unwrap_or(end_time_raw)
-        .parse::<f32>()?;
+    let end_time = env::var(END_TIME)?.parse::<f32>()?;
 
     let time = ((end_time - start_time) * 100.).round() / 100.;
 

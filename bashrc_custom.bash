@@ -16,12 +16,15 @@ export TEST_FILE="/tmp/tmp_test_file"
 
 # temporary, should be executable path in the future
 export PROJECT_PATH="$(pwd)/Cargo.toml"
+export BINARY_PATH="$(pwd)/learn_cli"
 
 # temporary, needs to be location of binary during distribution
-alias run_binary='cargo run --manifest-path $PROJECT_PATH'
-alias check='cargo run --manifest-path $PROJECT_PATH --  --user-command '
-alias current_level='cargo run --manifest-path $PROJECT_PATH -- current-level'
-alias all_levels='cargo run --manifest-path $PROJECT_PATH -- all-levels'
+#alias learn_cli='cargo run --manifest-path $PROJECT_PATH'
+#alias check='cargo run --manifest-path $PROJECT_PATH --  --user-command '
+
+# Actual aliases
+alias learn_cli='$BINARY_PATH'
+alias check='$BINARY_PATH --user-command'
 
 alias ls='ls --color=auto'
 alias grep='grep --color=auto'
@@ -29,27 +32,16 @@ PS1='[\u@\h \W]\$ '
 
 export NUMBER_OF_USED_COMMANDS=0
 export START_TIME=""
+export END_TIME=""
 
 echo "Welcome to the learning environment"
-echo "To get started, simply enter play_level into the command line to play the latest level"
 echo
-echo "To select a specific level, you can add the --level or -l flag after typing play_level"
-echo "Something like: 'play_level -l LEVEL_NUMBER'"
+echo -e "To get started, simply enter \033[3mlearn_cli play\033[0m into the command line to start the first level"
 echo
-echo "To close the game, run the 'exit' command"
+echo -e "Run \033[3mlearn_cli help\033[0m to learn how to use the learning tool command and its subcommands"
 echo
-
-play_level () {
-  # $1 is the -l flag, $2 is the level number
-  echo "Play level"
-  run_binary -- play $1 $2
-  env_listener
-}
-
-end_level() {
-  echo "ending level"
-  run_binary -- end $1 $2 $3
-}
+echo -e "To close the session, run the \033[3mexit\033[0m command"
+echo
 
 # used for reading the temp file contents, and acting on certain instructions it states
 env_listener () {
@@ -66,12 +58,12 @@ env_listener () {
           CURRENT_LEVEL=-1
         else
           echo "If you want to end the level early, enter 'end_level' into the command line"
-          current_level
+          echo
+          learn_cli current -s
           IN_LEVEL=1
           CURRENT_LEVEL=$level
           LEVEL_TYPE=$type
           START_TIME="$(date +%S.%N)"
-          echo "Playing level $CURRENT_LEVEL"
         fi
 
         NUMBER_OF_USED_COMMANDS=0
@@ -79,20 +71,15 @@ env_listener () {
 
       "END_LEVEL")
         if [[ $IN_LEVEL == "1" || $IN_LEVEL == 1 ]] then
-          echo "Ending level"
           IN_LEVEL=0
           START_TIME=""
+          END_TIME=""
           NUMBER_OF_USED_COMMANDS=0
-          # needs to submit these results (start and end msec and sec times, and also number of commands used)
         else
           echo "Currently not in level"
         fi
         ;;
 
-      #*)
-      #  # temporary
-      #  echo "Unknown command"
-      #  ;;
     esac
 
     #cat $TMP_FILE
@@ -112,17 +99,16 @@ test_listener() {
 }
 
 command_listener() {
-  #echo "Command: $BASH_COMMAND with exit status $?";
-  #if [[ $IN_LEVEL -eq 1 ]] && [[ $LEVEL_TYPE == "COMMAND" ]]; then
-  if [[ $IN_LEVEL -eq 1 ]] && [[ $BASH_COMMAND != "file_listener" ]]; then
+  if [[ $IN_LEVEL -eq 1 ]] && [[ $BASH_COMMAND != "prompt_command_fn" ]] && [[ $BASH_COMMAND != "test_listener" ]] && [[ $BASH_COMMAND != "env_listener" ]]; then
     NUMBER_OF_USED_COMMANDS=$((NUMBER_OF_USED_COMMANDS+1))
+    END_TIME="$(date +%S.%N)"
     export TRAPPED_COMMAND="$BASH_COMMAND"
   fi
 }
 
-file_listener() {
-  #if [[ $IN_LEVEL -eq 1 ]] && [[ $LEVEL_TYPE == "FILE" ]]; then
-  if [[ $IN_LEVEL -eq 1 ]]; then
+prompt_command_fn() {
+  env_listener
+  if [[ $IN_LEVEL -eq 1 ]] && [[ $TRAPPED_COMMAND != "command_listener" ]] && [[ $TRAPPED_COMMAND != "test_listener" ]] && [[ $TRAPPED_COMMAND != "env_listener" ]] && [[ $TRAPPED_COMMAND != "" ]]; then
     check "$TRAPPED_COMMAND"
     TRAPPED_COMMAND=""
     env_listener
@@ -131,5 +117,5 @@ file_listener() {
 
 env_listener
 test_listener
-PROMPT_COMMAND="file_listener"
+PROMPT_COMMAND="prompt_command_fn"
 trap command_listener debug
